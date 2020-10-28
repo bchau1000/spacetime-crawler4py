@@ -1,13 +1,24 @@
 import re
 from urllib.parse import urlparse
+from bs4 import BeautifulSoup
+from PartA import Tokenizer
+from PartB import common_tokens
+
 
 def scraper(url, resp):
+    if is_valid(url):
+        
     links = extract_next_links(url, resp)
     return [link for link in links if is_valid(link)]
 
 def extract_next_links(url, resp):
-    # Implementation requred.
-    return list()
+    res = []
+    soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
+    for link in soup.find_all('a'):
+        link = link.get('href')
+        res.append(link)
+
+    return res
 
 def is_valid(url):
     try:

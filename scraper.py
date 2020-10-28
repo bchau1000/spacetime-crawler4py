@@ -7,13 +7,15 @@ from PartB import common_tokens
 
 def scraper(url, resp):
     if is_valid(url):
-        
+        pass
     links = extract_next_links(url, resp)
     return [link for link in links if is_valid(link)]
 
 def extract_next_links(url, resp):
     res = []
-    soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
+    # parse web page
+    soup = BeautifulSoup(resp.raw_response.text, 'html.parser')
+    # parse links from page content
     for link in soup.find_all('a'):
         link = link.get('href')
         if is_valid(url):

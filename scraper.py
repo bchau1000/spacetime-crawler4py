@@ -26,6 +26,17 @@ def is_valid(url):
         parsed = urlparse(url)
         if parsed.scheme not in set(["http", "https"]):
             return False
+
+        # check if link is not within a valid domain
+        if not re.match(r'.ics.uci.edu' +
+                        r'.cs.uci.edu' +
+                        r'.informatics.uci.edu' +
+                        r'.stat.uci.edu', parsed.netloc)
+            or not (re.fullmatch(r'today.uci.edu', parsed.netloc)
+            and re.match(r'/department/information_computer_sciences', parsed.path)):
+            return False
+
+        # check if link is not a file
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"

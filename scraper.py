@@ -62,12 +62,27 @@ def tokenize_page(url, resp):
         tokens_filtered = list()
 
         # Filter out stop words, append text to tokens.txt
-        f = open('text/tokens.txt', '+a')
+        # f = open('text/tokens.txt', '+a')
         for token in tokens_raw:
             if (token not in stop_words) and len(token) > 1:
                 tokens_filtered.append(str(token))
-                f.write(str(token) + ' ')
-        f.close()
+                # f.write(str(token) + ' ')
+        # f.close()
+        map = computeWordFrequencies(tokens_filtered)
+        for t in map:
+            doc = {
+            "token": '',
+            "count": map[t]
+            }
+            doc["token"] = t;
+
+            if(tokenCol.find_one({'token': t}) == None):
+                # print("token not found, inserting")
+                tokenCol.insert_one(doc)
+            else:
+                # print ("token found... need to update")
+                tokenCol.update_one({'token': t}, {"$inc": {'count' : map[t]}})
+
 
         # Return the number of tokens in the page after stop word filter
         return len(tokens_filtered)
@@ -165,3 +180,18 @@ def is_valid(url):
     except TypeError:
         print ("TypeError for ", parsed)
         raise
+
+
+def computeWordFrequencies(tokenized):
+    # loop through tokens
+
+    map = {}
+    for x in tokenized:
+        # if exists, up the counter.
+        # if doesn't exist, add.
+        if x in map:
+            map[x] += 1
+        else:
+            map[x] = 1
+
+    return map

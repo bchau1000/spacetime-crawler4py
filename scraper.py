@@ -1,29 +1,46 @@
 import re
 
-import nltk 
+import nltk
 from nltk.corpus import stopwords
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 from urllib import robotparser
 import os
 
+from pymongo import MongoClient
+
+client = MongoClient('localhost')
+
+
+db = client['cs121Assignment2']
+tokenCol = db['tokenCollection']
+urlCol = db['urlCollection']
+
 def scraper(url, resp):
     f = open('text/link_info.txt', '+a')
     if(int(resp.status) in range(200, 300)):
         links = extract_next_links(url, resp)
         pageLength = tokenize_page(url, resp)
-        
-        lenFile = open('text/length.txt', '+a')
-        urlFile = open('text/URLs.txt', '+a')
+
+        # lenFile = open('text/length.txt', '+a')
+        # urlFile = open('text/URLs.txt', '+a')
 
         if int(resp.status) != 200:
             f.write(str(url) + ' <' + str(resp.status) + '>\n')
 
-        lenFile.write(str(pageLength) + ' ')
-        urlFile.write(url + '\n')
+        # lenFile.write(str(pageLength) + ' ')
+        # urlFile.write(url + '\n')
+        doc = {
+            "url": "",
+            "length": 0
+        }
+        doc["url"] = url
+        doc["length"] = pageLength
 
-        urlFile.close()
-        lenFile.close()
+        urlCol.insert_one(doc)
+
+        # urlFile.close()
+        # lenFile.close()
 
         return links
     else:
@@ -66,7 +83,7 @@ def extract_next_links(url, resp):
 
     try:
         soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
-        
+
         # Get all links on the page
         for link in soup.find_all('a'):
             # Append to the list if is_valid()

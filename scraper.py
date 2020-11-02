@@ -155,6 +155,12 @@ def is_valid(url):
                 validNetLoc = True
         if not validNetLoc:
             return False
+        elif re.match(r"^.*?(/.+?/).*?\1.*$|^.*?/(.+?/)\2.*$", parsed.path.lower()):
+            return False
+        elif re.match(r"^.*(/misc|/sites|/all|/themes|/modules|/profiles|/css|/field|/node|/theme){3}.*$", parsed.path.lower()):
+            return False
+        elif (re.match(r"^.*calendar.*$", url.lower())):
+            return False
 
         #if not check_robots(url):
             #return False

@@ -69,10 +69,10 @@ def is_valid(url):
             return False
 
         # check if link is not within a valid domain
-        if not re.match(r'^ics\.uci\.edu|.+\.ics\.uci\.edu' +
-                         r'|^cs\.uci\.edu|.+\.cs\.uci\.edu' +
-                         r'|^informatics\.uci\.edu|.+\.informatics\.uci\.edu' +
-                         r'|^stat\.uci\.edu|.+\.stat\.uci\.edu', parsed.netloc)\
+        if not re.match(r'^(?:www.)?ics\.uci\.edu|.+\.ics\.uci\.edu' +
+                         r'|^(?:www.)?cs\.uci\.edu|.+\.cs\.uci\.edu' +
+                         r'|^(?:www.)?informatics\.uci\.edu|.+\.informatics\.uci\.edu' +
+                         r'|^(?:www.)?stat\.uci\.edu|.+\.stat\.uci\.edu', parsed.netloc)\
             and not (re.match(r'today\.uci\.edu', parsed.netloc.lower())\
             and re.match(r'\/department\/information_computer_sciences(?:\/.+)*', parsed.path.lower())):
             return False

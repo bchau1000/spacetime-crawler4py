@@ -18,5 +18,5 @@ def download(url, config, logger=None):
             "status": resp.status_code,
             "url": url})
     except Exception as e:
-        with open('../errors.txt', mode='a') as file:
-            file.write(f'Error for url {url}: {e}')
+        with open('errors.txt', mode='a') as file:
+            file.write(f'Could not download {url}: {e}\n')

@@ -1,40 +1,75 @@
 import re
 import requests
 from urllib.parse import urlparse, urlunparse
+from nltk.corpus import stopwords
 from bs4 import BeautifulSoup
 from PartA import Tokenizer
 from PartB import common_tokens
 from readability import Document
 
 
-def tokenize(words):
-    res = []
-    pattern = re.compile(r'[A-Za-z0-9]+')
-    for word in words:
-        match = pattern.match(word)
-        if match and len(match.string) > 1:
-            res.append(match.string)
+def tokenize_page(url, resp):
+    try:
+        f = open('bad_urls.txt', 'r')
+        
+        listBadURLs = list()
+        for line in f:
+            listBadURLs.extend(list(line.split()))
+        f.close()
+        setBadURLs = listBadURLs
+        
+        if url in setBadURLs:
+            return 0
 
-    return res
+
+        soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
+        # Tokenize the page with regex split
+        tokens_raw = list(re.split(r'[^a-zA-Z0-9]', soup.get_text().lower()))
+
+        # Initialize list of stop words from NLTK
+        stop_words = set(stopwords.words('english'))
+        tokens_filtered = list()
+
+        # Filter out stop words, append text to tokens.txt
+        for token in tokens_raw:
+            if (token not in stop_words) and len(token) > 1:
+                tokens_filtered.append(str(token))
+
+        f = open('text/tokens.txt', '+a')
+        for token in tokens_filtered:
+            f.write(str(token) + ' ')
+        f.close()
+
+        # Return the number of tokens in the page after stop word filter
+        return len(tokens_filtered)
+    except:
+        f = open("text/errors.txt","a+")
+        f.write("Has tokenize error: " + url + "\n")
+        f.close()
+
+    return 0
 
 def scraper(url, resp):
     ########## add code to write url to file to answer report #############
-    #
+    
     links = []
 
     if resp.raw_response != None and not (resp.raw_response.status_code >= 400) and is_valid(url) and resp.raw_response.content != b'':
         if is_valid(resp.raw_response.url):
-        # pattern to split by anything that is not alphanumeric or an apostrophe
-        # pattern = re.compile(r"[^A-Za-z0-9']")
-
-        # doc = Document(resp.raw_response.content)
-        # words = pattern.split(doc.title.replace('\'', ''))        # strip title of apostrophes and split
-        # soup = BeautifulSoup(doc.summary(), 'html.parser')       # parse readable text from the html
-        # words += pattern.split(soup.get_text().replace('\'', '')) # strip content of apostrophes and split
-
-        # tokens = tokenize(words) # tokenize list of words from the web page
-
+            pageLength = tokenize_page(url, resp)
             links = extract_next_links(resp.raw_response.url, resp)
+
+            lenFile = open('text/length.txt', '+a')
+            urlFile = open('text/URLs.txt', '+a')
+            urlLenFile = open('text/urlLen.txt', '+a')
+
+            lenFile.write(str(pageLength) + ' ')
+            urlFile.write(url + '\n')
+            urlLenFile.write(url + ' ' + str(pageLength) + '\n')
+
+            urlLenFile.close()
+            urlFile.close()
+            lenFile.close()
 
     return links
 
@@ -46,17 +81,19 @@ def extract_next_links(url, resp):
     for link in soup.find_all('a'):
         link = link.get('href')
         if link != None:
-            # if its just a fragment, skip it
-            if link.startswith('#') or link.startswith('mailto'):
-                continue
             # if full link without schema
             if re.match(r'\/\/', link):
                 link = 'http:' + link
             # check if link is a relative path
             if link != None and re.match(r'\/.*', link):
-                link = resp.raw_response.url + link
-            parsed = urlparse(link)
-            link = urlunparse(parsed._replace(fragment=''))
+                relativeLink = link
+                parsed = urlparse(url)
+                    
+                link = str(parsed.scheme) + '://' + str(parsed.netloc) + str(link)
+
+                with open('errors.txt', mode='a') as file:
+                    file.write(f'Changed relative path {relativeLink} to {link}\n')
+
             if is_valid(link):
                 res.append(link)
 
@@ -66,6 +103,9 @@ def is_valid(url):
     try:
         parsed = urlparse(url)
         if parsed.scheme not in set(["http", "https"]):
+            return False
+
+        if len(parsed.fragment):
             return False
 
         # check if link is not within a valid domain

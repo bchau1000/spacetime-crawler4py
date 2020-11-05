@@ -26,6 +26,7 @@ def tokenize_page(url, resp):
         # Tokenize the page with regex split
         tokens_raw = list(re.split(r'[^a-zA-Z0-9]', soup.get_text().lower()))
 
+
         # Initialize list of stop words from NLTK
         stop_words = set(stopwords.words('english'))
         tokens_filtered = list()
@@ -88,11 +89,7 @@ def extract_next_links(url, resp):
             if link != None and re.match(r'\/.*', link):
                 relativeLink = link
                 parsed = urlparse(url)
-                    
                 link = str(parsed.scheme) + '://' + str(parsed.netloc) + str(link)
-
-                with open('errors.txt', mode='a') as file:
-                    file.write(f'Changed relative path {relativeLink} to {link}\n')
 
             if is_valid(link):
                 res.append(link)

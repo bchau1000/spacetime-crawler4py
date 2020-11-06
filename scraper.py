@@ -1,48 +1,100 @@
 import re
-
-import nltk 
+import requests
+from urllib.parse import urlparse, urlunparse
 from nltk.corpus import stopwords
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse
-import os
+from PartA import Tokenizer
+from PartB import common_tokens
+from readability import Document
 
 def scraper(url, resp):
-    links = extract_next_links(url, resp)
+    links = []
 
-    lenFile = open('text/length.txt', '+a')
-    pageLength = tokenize_page(url, resp)
-    lenFile.write(str(pageLength) + ' ')
-    lenFile.close()
+    if resp.raw_response != None and not (resp.raw_response.status_code >= 400) and is_valid(url) and resp.raw_response.content != b'':
+        if is_valid(resp.raw_response.url):
+            pageLength = tokenize_page(url, resp)
+            links = extract_next_links(resp.raw_response.url, resp)
 
-    urlFile = open('text/URLs.txt', '+a')
-    for link in links:
-        urlFile.write(link + '\n')
-    urlFile.close()
+            lenFile = open('text/length.txt', '+a')
+            urlFile = open('text/URLs.txt', '+a')
+            urlLenFile = open('text/urlLen.txt', '+a')
+
+            lenFile.write(str(pageLength) + ' ')
+            urlFile.write(url + '\n')
+            urlLenFile.write(url + ' ' + str(pageLength) + '\n')
+
+            urlLenFile.close()
+            urlFile.close()
+            lenFile.close()
 
     return links
 
+def extract_next_links(url, resp):
+    res = []
+    # parse web page
+    soup = BeautifulSoup(resp.raw_response.text, 'html.parser')
+    # parse links from page content
+    for link in soup.find_all('a'):
+        link = link.get('href')
+        if link != None:
+            # if full link without schema
+            if re.match(r'\/\/', link):
+                link = 'http:' + link
+            # check if link is a relative path
+            if link != None and re.match(r'\/.*', link):
+                relativeLink = link
+                parsed = urlparse(url)
+                link = str(parsed.scheme) + '://' + str(parsed.netloc) + str(link)
+
+            if is_valid(link):
+                res.append(link)
+
+    return res
+
 def tokenize_page(url, resp):
     try:
+        f = open('bad_urls.txt', 'r')
+        
+        listBadURLs = list()
+        for line in f:
+            listBadURLs.extend(list(line.split()))
+        f.close()
+        setBadURLs = set(listBadURLs)
+        
+        if url in setBadURLs:
+            return 0
+
+
         soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
-        fileName = 'text/token1.txt'
-        textFile = open(fileName, '+a')
-
-        file_stats = os.stat(fileName)
-        file_size = file_stats.st_size / (1024 * 1024)
-
-        if(file_size > 30.0):
-            textFile.close()
-            textFile = open('text/token2.txt', '+a')
-
+        # Tokenize the page with regex split
         tokens_raw = list(re.split(r'[^a-zA-Z0-9]', soup.get_text().lower()))
+        
+
+        # Initialize list of stop words from NLTK
         stop_words = set(stopwords.words('english'))
         tokens_filtered = list()
 
+        # Filter out stop words, append text to tokens.txt
         for token in tokens_raw:
             if (token not in stop_words) and len(token) > 1:
                 tokens_filtered.append(str(token))
-                textFile.write(str(token) + ' ')
 
+
+        # Use to determine low information pages, compare ratio of tags to tokens
+        # If the tags comprise of more than 70%, insert into bad_urls.txt for later reference
+        #html_tags = list(soup.find_all())
+        #info_ratio = float(len(html_tags)) / float(len(tokens_filtered)) + float(len(html_tags)) 
+
+        #if(info_ratio >= 0.7):
+        #    with open('text/bad_urls.txt', mode='+a') as file:
+        #        file.write(url + ' ')
+
+        f = open('text/tokens.txt', '+a')
+        for token in tokens_filtered:
+            f.write(str(token) + ' ')
+        f.close()
+
+        # Return the number of tokens in the page after stop word filter
         return len(tokens_filtered)
     except:
         f = open("text/errors.txt","a+")
@@ -50,22 +102,6 @@ def tokenize_page(url, resp):
         f.close()
 
     return 0
-
-def extract_next_links(url, resp):
-    urlList = list()
-
-    try:
-        soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
-        for link in soup.find_all('a'):
-            if is_valid(link.get('href')):
-                urlList.append(link.get('href'))
-    except:
-        f = open("text/errors.txt","a+")
-        f.write("Has extract error: " + url + "\n")
-        f.close()
-
-    
-    return urlList
 
 def is_valid(url):
     try:
@@ -80,33 +116,55 @@ def is_valid(url):
         if parsed.scheme not in set(["http", "https"]):
             return False
 
-        listURLs = ['ics.uci.edu', 'cs.uci.edu',
-                    'informatics.uci.edu', 'stat.uci.edu',
-                    'today.uci.edu/department/information_computer_sciences']
-
-        validNetLoc = False
-
-        for netloc in listURLs:
-            if(netloc in parsed.netloc):
-                validNetLoc = True
-
-        if not validNetLoc:
+        # Ignore fragments
+        if len(parsed.fragment):
             return False
 
-        urlPath = (parsed.path + parsed.params).lower()
+        # check if link is not within a valid domain
+        if not re.match(r'^(?:www.)?ics\.uci\.edu|.+\.ics\.uci\.edu' +
+                         r'|^(?:www.)?cs\.uci\.edu|.+\.cs\.uci\.edu' +
+                         r'|^(?:www.)?informatics\.uci\.edu|.+\.informatics\.uci\.edu' +
+                         r'|^(?:www.)?stat\.uci\.edu|.+\.stat\.uci\.edu', parsed.netloc)\
+            and not (re.match(r'today\.uci\.edu', parsed.netloc.lower())\
+            and re.match(r'\/department\/information_computer_sciences(?:\/.+)*', parsed.path.lower())):
+            return False
 
-        return not re.match(r"^.*\b(css|js|bmp|gif|jpe?g|ico"
+        # check if its a calendar
+        if re.search(r'\/calendar\/.+|\/events\/.+', parsed.path.lower()):
+            return False
+
+        # check for repeating directories or directory path after file
+        # /folder/folder/folder
+        # /text.txt/folder
+        if re.match(r'.*?\/(.+?)\/.*?\1.*|.*?\/(.+?)\/\2.*', parsed.path.lower()) or\
+           re.match(r'.*\..+\/', parsed.path.lower()):
+            return False
+
+        # check for exrta question mark in queries or directory path in queries
+        # i.e. www.ics.uci.edu?id=5?key=55
+        # i.e. www.ics.uci.edu?id=5/new/directory/path
+        if re.match(r'.*\?.*|.*\/', parsed.query.lower()):
+            return False
+        
+        # check if query is a reply to comment trap
+        if re.search(r'replytocom=', parsed.query.lower()):
+            return False
+        
+        # check for extraneous directories
+        if re.search(r'\/involved\/.+\/.+', parsed.path.lower()):
+            return False
+
+        # check if link is not an unreadable file
+        return not re.search(
+            r"[\.\/](css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"
             + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf"
-            + r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names"
+            + r"|ps|eps|tex|ppt|pptx|ppsx|doc|docx|xls|xlsx|names"
             + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
             + r"|epub|dll|cnf|tgz|sha1"
             + r"|thmx|mso|arff|rtf|jar|csv"
-            + r"|rm|smil|wmv|swf|wma|zip|rar|gz"
-            + r"|calendar|calendars|event|events"
-            + r"|comment|response|respond|ppsx)\b.*$", urlPath)
+            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)", parsed.path.lower() + parsed.query.lower())
 
     except TypeError:
         print ("TypeError for ", parsed)
         raise
-

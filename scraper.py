@@ -7,51 +7,7 @@ from PartA import Tokenizer
 from PartB import common_tokens
 from readability import Document
 
-
-def tokenize_page(url, resp):
-    try:
-        f = open('bad_urls.txt', 'r')
-        
-        listBadURLs = list()
-        for line in f:
-            listBadURLs.extend(list(line.split()))
-        f.close()
-        setBadURLs = listBadURLs
-        
-        if url in setBadURLs:
-            return 0
-
-
-        soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
-        # Tokenize the page with regex split
-        tokens_raw = list(re.split(r'[^a-zA-Z0-9]', soup.get_text().lower()))
-
-        # Initialize list of stop words from NLTK
-        stop_words = set(stopwords.words('english'))
-        tokens_filtered = list()
-
-        # Filter out stop words, append text to tokens.txt
-        for token in tokens_raw:
-            if (token not in stop_words) and len(token) > 1:
-                tokens_filtered.append(str(token))
-
-        f = open('text/tokens.txt', '+a')
-        for token in tokens_filtered:
-            f.write(str(token) + ' ')
-        f.close()
-
-        # Return the number of tokens in the page after stop word filter
-        return len(tokens_filtered)
-    except:
-        f = open("text/errors.txt","a+")
-        f.write("Has tokenize error: " + url + "\n")
-        f.close()
-
-    return 0
-
 def scraper(url, resp):
-    ########## add code to write url to file to answer report #############
-    
     links = []
 
     if resp.raw_response != None and not (resp.raw_response.status_code >= 400) and is_valid(url) and resp.raw_response.content != b'':
@@ -88,16 +44,64 @@ def extract_next_links(url, resp):
             if link != None and re.match(r'\/.*', link):
                 relativeLink = link
                 parsed = urlparse(url)
-                    
                 link = str(parsed.scheme) + '://' + str(parsed.netloc) + str(link)
-
-                with open('errors.txt', mode='a') as file:
-                    file.write(f'Changed relative path {relativeLink} to {link}\n')
 
             if is_valid(link):
                 res.append(link)
 
     return res
+
+def tokenize_page(url, resp):
+    try:
+        f = open('bad_urls.txt', 'r')
+        
+        listBadURLs = list()
+        for line in f:
+            listBadURLs.extend(list(line.split()))
+        f.close()
+        setBadURLs = set(listBadURLs)
+        
+        if url in setBadURLs:
+            return 0
+
+
+        soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
+        # Tokenize the page with regex split
+        tokens_raw = list(re.split(r'[^a-zA-Z0-9]', soup.get_text().lower()))
+        
+
+        # Initialize list of stop words from NLTK
+        stop_words = set(stopwords.words('english'))
+        tokens_filtered = list()
+
+        # Filter out stop words, append text to tokens.txt
+        for token in tokens_raw:
+            if (token not in stop_words) and len(token) > 1:
+                tokens_filtered.append(str(token))
+
+
+        # Use to determine low information pages, compare ratio of tags to tokens
+        # If the tags comprise of more than 70%, insert into bad_urls.txt for later reference
+        #html_tags = list(soup.find_all())
+        #info_ratio = float(len(html_tags)) / float(len(tokens_filtered)) + float(len(html_tags)) 
+
+        #if(info_ratio >= 0.7):
+        #    with open('text/bad_urls.txt', mode='+a') as file:
+        #        file.write(url + ' ')
+
+        f = open('text/tokens.txt', '+a')
+        for token in tokens_filtered:
+            f.write(str(token) + ' ')
+        f.close()
+
+        # Return the number of tokens in the page after stop word filter
+        return len(tokens_filtered)
+    except:
+        f = open("text/errors.txt","a+")
+        f.write("Has tokenize error: " + url + "\n")
+        f.close()
+
+    return 0
 
 def is_valid(url):
     try:
@@ -105,6 +109,7 @@ def is_valid(url):
         if parsed.scheme not in set(["http", "https"]):
             return False
 
+        # Ignore fragments
         if len(parsed.fragment):
             return False
 

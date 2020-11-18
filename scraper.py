@@ -3,18 +3,18 @@ import requests
 from urllib.parse import urlparse, urlunparse
 from nltk.corpus import stopwords
 from bs4 import BeautifulSoup
-from PartA import Tokenizer
-from PartB import common_tokens
-from readability import Document
 
 def scraper(url, resp):
     links = []
 
+    # Check if the response is valid
     if resp.raw_response != None and not (resp.raw_response.status_code >= 400) and is_valid(url) and resp.raw_response.content != b'':
+        # Check if redirect urls are valid, since the raw url does not contain a redirect
         if is_valid(resp.raw_response.url):
             pageLength = tokenize_page(url, resp)
             links = extract_next_links(resp.raw_response.url, resp)
 
+            # Output information for report
             lenFile = open('text/length.txt', '+a')
             urlFile = open('text/URLs.txt', '+a')
             urlLenFile = open('text/urlLen.txt', '+a')
@@ -37,10 +37,13 @@ def extract_next_links(url, resp):
     for link in soup.find_all('a'):
         link = link.get('href')
         if link != None:
-            # if full link without schema
+            # If the page has no schema add http, if the page supports https, it should automatically redirect
             if re.match(r'\/\/', link):
                 link = 'http:' + link
-            # check if link is a relative path
+                
+            # Check if link is a relative path
+            # If the link is just /path/query?parameters etc, turn it into a full link
+            
             if link != None and re.match(r'\/.*', link):
                 relativeLink = link
                 parsed = urlparse(url)
@@ -53,19 +56,20 @@ def extract_next_links(url, resp):
 
 def tokenize_page(url, resp):
     try:
+        # bad_urls.txt contains urls with low information content
+        # If the url is in bad_urls, don't crawl it
         f = open('bad_urls.txt', 'r')
-        
         listBadURLs = list()
         for line in f:
             listBadURLs.extend(list(line.split()))
         f.close()
         setBadURLs = set(listBadURLs)
-        
         if url in setBadURLs:
             return 0
 
-
+        # Initialize BeautifulSoup parser
         soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
+        
         # Tokenize the page with regex split
         tokens_raw = list(re.split(r'[^a-zA-Z0-9]', soup.get_text().lower()))
         
@@ -105,22 +109,22 @@ def tokenize_page(url, resp):
 
 def is_valid(url):
     try:
+        # split url into its parts: schema netloc path query fragment
         parsed = urlparse(url)
 
+        # skip links that have fragments, since they're internal references
         if len(parsed.fragment):
             f = open("text/errors.txt","a+")
             f.write("Has skipped fragment: " + url + "\n")
             f.close()
             return False
         
+        # given
         if parsed.scheme not in set(["http", "https"]):
             return False
 
-        # Ignore fragments
-        if len(parsed.fragment):
-            return False
-
         # check if link is not within a valid domain
+        # optional www. in case it is not provided in the tag
         if not re.match(r'^(?:www.)?ics\.uci\.edu|.+\.ics\.uci\.edu' +
                          r'|^(?:www.)?cs\.uci\.edu|.+\.cs\.uci\.edu' +
                          r'|^(?:www.)?informatics\.uci\.edu|.+\.informatics\.uci\.edu' +
@@ -129,7 +133,7 @@ def is_valid(url):
             and re.match(r'\/department\/information_computer_sciences(?:\/.+)*', parsed.path.lower())):
             return False
 
-        # check if its a calendar
+        # check if its a calendar, calendars are traps
         if re.search(r'\/calendar\/.+|\/events\/.+', parsed.path.lower()):
             return False
 
@@ -150,11 +154,14 @@ def is_valid(url):
         if re.search(r'replytocom=', parsed.query.lower()):
             return False
         
-        # check for extraneous directories
+        # check for extraneous directories after initial url
+        # eg. https://www.ics.uci.edu/involved/project_sponsor.php and https://www.ics.uci.edu/involved/project_sponsor.php/hello
+            # lead to the same page, one with css the other without
         if re.search(r'\/involved\/.+\/.+', parsed.path.lower()):
             return False
 
         # check if link is not an unreadable file
+        # avoid extensions that aren't valid
         return not re.search(
             r"[\.\/](css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"

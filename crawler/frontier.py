@@ -35,6 +35,7 @@ class Frontier(object):
                 for url in self.config.seed_urls:
                     self.add_url(url)
 
+    
     def _parse_save_file(self):
         ''' This function can be overridden for alternate saving techniques. '''
         total_count = len(self.save)
@@ -47,12 +48,14 @@ class Frontier(object):
             f"Found {tbd_count} urls to be downloaded from {total_count} "
             f"total urls discovered.")
 
+    # Adds to the to be downloaded, from the frontier
     def get_tbd_url(self):
         try:
             return self.to_be_downloaded.pop()
         except IndexError:
             return None
 
+    # Add to frontier
     def add_url(self, url):
         url = normalize(url)
         urlhash = get_urlhash(url)
@@ -61,6 +64,7 @@ class Frontier(object):
             self.save.sync()
             self.to_be_downloaded.append(url)
     
+    # Remove url from frontier
     def mark_url_complete(self, url):
         urlhash = get_urlhash(url)
         if urlhash not in self.save:
